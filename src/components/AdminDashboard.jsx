@@ -78,10 +78,10 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Warn if large (> 5MB)
-    const maxSize = 5 * 1024 * 1024;
+    // Higher limit for videos/photos (e.g. 200MB)
+    const maxSize = 200 * 1024 * 1024;
     if (file.size > maxSize) {
-      setUploadError('File is too large. Please use files under 5MB for best performance.');
+      setUploadError('File is too large. Please use files under 200MB for best performance.');
       return;
     }
 
