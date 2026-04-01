@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, ExternalLink, Image, Film } from 'lucide-react';
+import { ArrowRight, ExternalLink, Image, Film, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabaseClient';
 
 const categories = ['All Work', 'Web Design', 'Video Editing', 'Photo Editing', 'Other'];
@@ -8,6 +9,7 @@ const Portfolio = () => {
   const [active, setActive] = useState('All Work');
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -37,6 +39,24 @@ const Portfolio = () => {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Keyboard support for ESC key
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') setSelectedProject(null);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+
+  // Prevent scroll when modal is open
+  useEffect(() => {
+    if (selectedProject) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+  }, [selectedProject]);
 
   const filtered =
     active === 'All Work' ? projects : projects.filter((p) => p.category === active);
@@ -84,9 +104,11 @@ const Portfolio = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((project) => (
-              <div
+              <motion.div
+                layout
                 key={project.id}
-                className="glass rounded-2xl overflow-hidden group hover:border-purple-500/30 transition-all duration-300 hover:scale-[1.02]"
+                onClick={() => setSelectedProject(project)}
+                className="glass rounded-2xl overflow-hidden group hover:border-purple-500/30 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
               >
                 {/* Media */}
                 <div className="h-52 bg-gradient-to-br from-purple-900/20 to-blue-900/20 relative overflow-hidden">
@@ -150,10 +172,108 @@ const Portfolio = () => {
                     <p className="text-gray-500 text-sm line-clamp-2">{project.description}</p>
                   )}
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
+
+        {/* Lightbox / Modal */}
+        <AnimatePresence>
+          {selectedProject && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[999] flex items-center justify-center p-4 md:p-8"
+            >
+              {/* Backdrop */}
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedProject(null)}
+                className="absolute inset-0 bg-black/95 backdrop-blur-sm"
+              />
+
+              {/* Content Card */}
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="relative w-full max-w-5xl bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10 z-10 flex flex-col md:flex-row"
+              >
+                {/* Close Button */}
+                <button
+                  onClick={() => setSelectedProject(null)}
+                  className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all z-20"
+                >
+                  <X size={20} />
+                </button>
+
+                {/* Media Section */}
+                <div className="w-full md:w-2/3 bg-black flex items-center justify-center">
+                  {selectedProject.media_url ? (
+                    selectedProject.media_type === 'video' ? (
+                      <video
+                        src={selectedProject.media_url}
+                        className="w-full h-auto max-h-[80vh]"
+                        controls
+                        autoPlay
+                      />
+                    ) : (
+                      <img
+                        src={selectedProject.media_url}
+                        alt={selectedProject.title}
+                        className="w-full h-auto max-h-[80vh] object-contain"
+                      />
+                    )
+                  ) : (
+                    <div className="p-20 text-gray-700 text-center">
+                      <Image size={64} className="mx-auto mb-4" />
+                      <p>No preview available</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info Section */}
+                <div className="w-full md:w-1/3 p-8 md:p-10 flex flex-col bg-zinc-900 border-l border-white/5">
+                  <div className="mb-auto">
+                    <span className="inline-block px-3 py-1 rounded-full bg-purple-600/20 text-purple-400 text-xs font-bold mb-4">
+                      {selectedProject.category}
+                    </span>
+                    <h3 className="text-3xl font-black text-white mb-4">
+                      {selectedProject.title}
+                    </h3>
+                    <p className="text-gray-400 leading-relaxed mb-6">
+                      {selectedProject.description || "No description provided for this masterpiece."}
+                    </p>
+                  </div>
+
+                  <div className="pt-8 mt-8 border-t border-white/5">
+                    {selectedProject.live_url ? (
+                      <a
+                        href={selectedProject.live_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-4 rounded-xl bg-white text-black font-bold flex items-center justify-center gap-2 hover:bg-purple-500 hover:text-white transition-all transform active:scale-95"
+                      >
+                        Visit Website
+                        <ExternalLink size={18} />
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => setSelectedProject(null)}
+                        className="w-full py-4 rounded-xl bg-white/5 text-white font-bold flex items-center justify-center gap-2 hover:bg-white/10 transition-all"
+                      >
+                        Back to Portfolio
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* View All Button */}
         {projects.length > 0 && (
