@@ -235,21 +235,32 @@ const Portfolio = () => {
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
                             transition={{ duration: 0.3 }}
-                            className="w-full h-full flex items-center justify-center"
+                            drag="x"
+                            dragConstraints={{ left: 0, right: 0 }}
+                            onDragEnd={(e, { offset, velocity }) => {
+                              const swipe = offset.x;
+                              if (swipe < -50) {
+                                setCurrentMediaIndex((prev) => (prev === items.length - 1 ? 0 : prev + 1));
+                              } else if (swipe > 50) {
+                                setCurrentMediaIndex((prev) => (prev === 0 ? items.length - 1 : prev - 1));
+                              }
+                            }}
+                            className="w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing"
                           >
                             {item.url ? (
                               item.type === 'video' ? (
                                 <video
                                   src={item.url}
-                                  className="w-full h-auto max-h-[70vh] lg:max-h-[85vh]"
-                                  controls
+                                  className="w-full h-auto max-h-[70vh] lg:max-h-[85vh] pointer-events-none md:pointer-events-auto"
+                                  controls={false} // Disable controls while dragging, or keep them if preferred
                                   autoPlay
+                                  muted={items.length > 1} // Mute if it's a gallery to avoid multiple sounds
                                 />
                               ) : (
                                 <img
                                   src={item.url}
                                   alt={selectedProject.title}
-                                  className="w-full h-auto max-h-[70vh] lg:max-h-[85vh] object-contain select-none"
+                                  className="w-full h-auto max-h-[70vh] lg:max-h-[85vh] object-contain select-none pointer-events-none"
                                 />
                               )
                             ) : (
@@ -266,13 +277,13 @@ const Portfolio = () => {
                           <>
                             <button
                               onClick={() => setCurrentMediaIndex((prev) => (prev === 0 ? items.length - 1 : prev - 1))}
-                              className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all opacity-0 group-hover/modal:opacity-100 z-30"
+                              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all z-30 opacity-100 md:opacity-0 md:group-hover/modal:opacity-100"
                             >
                               <ChevronLeft size={24} />
                             </button>
                             <button
                               onClick={() => setCurrentMediaIndex((prev) => (prev === items.length - 1 ? 0 : prev + 1))}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all opacity-0 group-hover/modal:opacity-100 z-30"
+                              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all z-30 opacity-100 md:opacity-0 md:group-hover/modal:opacity-100"
                             >
                               <ChevronRight size={24} />
                             </button>
