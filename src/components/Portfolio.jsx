@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, ExternalLink, Image, Film, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Image, Film, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabaseClient';
 
@@ -10,6 +10,7 @@ const Portfolio = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -191,7 +192,10 @@ const Portfolio = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                onClick={() => setSelectedProject(null)}
+                onClick={() => {
+                  setSelectedProject(null);
+                  setCurrentMediaIndex(0);
+                }}
                 className="absolute inset-0 bg-black/95 backdrop-blur-sm"
               />
 
@@ -200,45 +204,100 @@ const Portfolio = () => {
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="relative w-full max-w-5xl bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10 z-10 flex flex-col md:flex-row"
+                className="relative w-full max-w-6xl bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10 z-10 flex flex-col lg:flex-row min-h-[500px]"
               >
                 {/* Close Button */}
                 <button
-                  onClick={() => setSelectedProject(null)}
-                  className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all z-20"
+                  onClick={() => {
+                    setSelectedProject(null);
+                    setCurrentMediaIndex(0);
+                  }}
+                  className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all z-50"
                 >
                   <X size={20} />
                 </button>
 
-                {/* Media Section */}
-                <div className="w-full md:w-2/3 bg-black flex items-center justify-center">
-                  {selectedProject.media_url ? (
-                    selectedProject.media_type === 'video' ? (
-                      <video
-                        src={selectedProject.media_url}
-                        className="w-full h-auto max-h-[80vh]"
-                        controls
-                        autoPlay
-                      />
-                    ) : (
-                      <img
-                        src={selectedProject.media_url}
-                        alt={selectedProject.title}
-                        className="w-full h-auto max-h-[80vh] object-contain"
-                      />
-                    )
-                  ) : (
-                    <div className="p-20 text-gray-700 text-center">
-                      <Image size={64} className="mx-auto mb-4" />
-                      <p>No preview available</p>
-                    </div>
-                  )}
+                {/* Media Section (Carousel) */}
+                <div className="w-full lg:w-3/4 bg-black flex items-center justify-center relative group/modal">
+                  {(() => {
+                    const items = selectedProject.media_items && selectedProject.media_items.length > 0 
+                      ? selectedProject.media_items 
+                      : [{ url: selectedProject.media_url, type: selectedProject.media_type }];
+                    
+                    const item = items[currentMediaIndex];
+                    
+                    return (
+                      <>
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={`${selectedProject.id}-${currentMediaIndex}`}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
+                            className="w-full h-full flex items-center justify-center"
+                          >
+                            {item.url ? (
+                              item.type === 'video' ? (
+                                <video
+                                  src={item.url}
+                                  className="w-full h-auto max-h-[70vh] lg:max-h-[85vh]"
+                                  controls
+                                  autoPlay
+                                />
+                              ) : (
+                                <img
+                                  src={item.url}
+                                  alt={selectedProject.title}
+                                  className="w-full h-auto max-h-[70vh] lg:max-h-[85vh] object-contain select-none"
+                                />
+                              )
+                            ) : (
+                              <div className="p-20 text-gray-700 text-center">
+                                <Image size={64} className="mx-auto mb-4" />
+                                <p>No preview available</p>
+                              </div>
+                            )}
+                          </motion.div>
+                        </AnimatePresence>
+
+                        {/* Navigation Arrows */}
+                        {items.length > 1 && (
+                          <>
+                            <button
+                              onClick={() => setCurrentMediaIndex((prev) => (prev === 0 ? items.length - 1 : prev - 1))}
+                              className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all opacity-0 group-hover/modal:opacity-100 z-30"
+                            >
+                              <ChevronLeft size={24} />
+                            </button>
+                            <button
+                              onClick={() => setCurrentMediaIndex((prev) => (prev === items.length - 1 ? 0 : prev + 1))}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all opacity-0 group-hover/modal:opacity-100 z-30"
+                            >
+                              <ChevronRight size={24} />
+                            </button>
+
+                            {/* Pagination Dots */}
+                            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-30">
+                              {items.map((_, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => setCurrentMediaIndex(idx)}
+                                  className={`w-2 h-2 rounded-full transition-all ${idx === currentMediaIndex ? 'bg-purple-500 w-6' : 'bg-white/30 hover:bg-white/50'}`}
+                                />
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Info Section */}
-                <div className="w-full md:w-1/3 p-8 md:p-10 flex flex-col bg-zinc-900 border-l border-white/5">
+                <div className="w-full lg:w-1/4 p-8 md:p-10 flex flex-col bg-zinc-900 border-l border-white/5 shadow-2xl relative z-10">
                   <div className="mb-auto">
-                    <span className="inline-block px-3 py-1 rounded-full bg-purple-600/20 text-purple-400 text-xs font-bold mb-4">
+                    <span className="inline-block px-3 py-1 rounded-full bg-purple-600/20 text-purple-400 text-xs font-bold mb-4 uppercase tracking-widest leading-none">
                       {selectedProject.category}
                     </span>
                     <h3 className="text-3xl font-black text-white mb-4">
@@ -255,17 +314,20 @@ const Portfolio = () => {
                         href={selectedProject.live_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-full py-4 rounded-xl bg-white text-black font-bold flex items-center justify-center gap-2 hover:bg-purple-500 hover:text-white transition-all transform active:scale-95"
+                        className="w-full py-4 rounded-xl bg-purple-600 text-white font-bold flex items-center justify-center gap-2 hover:bg-purple-500 transition-all transform active:scale-95 shadow-lg shadow-purple-500/20"
                       >
-                        Visit Website
+                        Visit Project
                         <ExternalLink size={18} />
                       </a>
                     ) : (
                       <button
-                        onClick={() => setSelectedProject(null)}
+                        onClick={() => {
+                          setSelectedProject(null);
+                          setCurrentMediaIndex(0);
+                        }}
                         className="w-full py-4 rounded-xl bg-white/5 text-white font-bold flex items-center justify-center gap-2 hover:bg-white/10 transition-all"
                       >
-                        Back to Portfolio
+                        Close Preview
                       </button>
                     )}
                   </div>

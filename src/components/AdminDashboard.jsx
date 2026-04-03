@@ -56,11 +56,9 @@ const AdminDashboard = () => {
     title: '',
     category: 'Web Design',
     description: '',
-    imageUrl: '',    // for Web Design projects
-    mediaData: '',   // base64 data URL for preview
-    mediaType: '',   // 'image' or 'video'
-    mediaName: '',   // original file name
-    mediaFile: null, // RAW FILE OBJECT FOR UPLOAD
+    imageUrl: '',
+    description: '',
+    mediaItems: [], // ARRAY of { data, type, name, file } objects
     liveUrl: '',
   });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -81,7 +79,7 @@ const AdminDashboard = () => {
     // Higher limit for videos/photos (e.g. 200MB)
     const maxSize = 200 * 1024 * 1024;
     if (file.size > maxSize) {
-      setUploadError('File is too large. Please use files under 200MB for best performance.');
+      setUploadError(`File "${file.name}" is too large (>200MB).`);
       return;
     }
 
@@ -89,25 +87,32 @@ const AdminDashboard = () => {
     reader.onload = (e) => {
       setForm((prev) => ({
         ...prev,
-        mediaData: e.target.result,
-        mediaType: isImage ? 'image' : 'video',
-        mediaName: file.name,
-        mediaFile: file,
+        mediaItems: [
+          ...prev.mediaItems,
+          {
+            id: Math.random().toString(36).substring(2),
+            data: e.target.result,
+            type: isImage ? 'image' : 'video',
+            name: file.name,
+            file: file,
+          },
+        ],
       }));
     };
     reader.readAsDataURL(file);
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) processFile(file);
+    const files = Array.from(e.target.files);
+    files.forEach(processFile);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) processFile(file);
+    const files = Array.from(e.dataTransfer.files);
+    files.forEach(processFile);
   };
 
   const handleDragOver = (e) => {
@@ -120,36 +125,52 @@ const AdminDashboard = () => {
     setIsDragging(false);
   };
 
+  const removeMediaItem = (id) => {
+    setForm((prev) => ({
+      ...prev,
+      mediaItems: prev.mediaItems.filter((item) => item.id !== id),
+    }));
+  };
+
   const clearMedia = () => {
-    setForm((prev) => ({ ...prev, mediaData: '', mediaType: '', mediaName: '' }));
+    setForm((prev) => ({ ...prev, mediaItems: [] }));
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleAdd = async (e) => {
     e.preventDefault();
+    if (form.mediaItems.length === 0) {
+      setUploadError('Please select at least one photo or video.');
+      return;
+    }
+
     setUploading(true);
     setUploadError('');
 
-    let mediaUrl = '';
+    const mediaList = [];
 
     try {
-      // 1. Upload file to Supabase Storage if exists
-      if (form.mediaFile) {
-        const fileExt = form.mediaName.split('.').pop();
+      // 1. Upload all files to Supabase Storage
+      for (const item of form.mediaItems) {
+        const fileExt = item.name.split('.').pop();
         const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-        const filePath = `${fileName}`; // bucket is portfolio_media
+        const filePath = `${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('portfolio_media')
-          .upload(filePath, form.mediaFile);
+          .upload(filePath, item.file);
 
-        if (uploadError) throw new Error('Upload failed: ' + uploadError.message);
+        if (uploadError) throw new Error(`Upload failed for ${item.name}: ${uploadError.message}`);
 
         const { data: urlData } = supabase.storage
           .from('portfolio_media')
           .getPublicUrl(filePath);
         
-        mediaUrl = urlData.publicUrl;
+        mediaList.push({
+          url: urlData.publicUrl,
+          type: item.type,
+          name: item.name
+        });
       }
 
       // 2. Insert into Database
@@ -159,16 +180,17 @@ const AdminDashboard = () => {
           title: form.title,
           category: form.category,
           description: form.description,
-          media_url: mediaUrl,
-          media_type: form.mediaType,
-          media_name: form.mediaName,
+          media_url: mediaList[0].url, // MAIN media for preview
+          media_type: mediaList[0].type,
+          media_name: mediaList[0].name,
+          media_items: mediaList,      // FULL GALLERY
           live_url: form.liveUrl
         }]);
 
       if (dbError) throw new Error('Database save failed: ' + dbError.message);
 
       // 3. Cleanup and refresh
-      setForm({ title: '', category: 'Web Design', description: '', imageUrl: '', mediaData: '', mediaType: '', mediaName: '', mediaFile: null, liveUrl: '' });
+      setForm({ title: '', category: 'Web Design', description: '', imageUrl: '', mediaItems: [], liveUrl: '' });
       if (fileInputRef.current) fileInputRef.current.value = '';
       setShowForm(false);
       fetchProjects();
@@ -353,58 +375,65 @@ const AdminDashboard = () => {
                     <input
                       ref={fileInputRef}
                       type="file"
+                      multiple
                       accept="image/*,video/*"
                       onChange={handleFileChange}
                       className="hidden"
                     />
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-14 h-14 rounded-2xl bg-purple-600/10 flex items-center justify-center">
-                        <Upload size={24} className="text-purple-400" />
+                        <Plus size={24} className="text-purple-400" />
                       </div>
                       <div>
                         <p className="text-white font-medium">
-                          {isDragging ? 'Drop your file here' : 'Drag & drop or click to browse'}
+                          {isDragging ? 'Drop files here' : 'Add Gallery Items'}
                         </p>
                         <p className="text-gray-600 text-xs mt-1">
-                          Supports images (JPG, PNG, GIF, WebP) and videos (MP4, WebM) — max 5MB
+                          You can select multiple photos and videos
                         </p>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  /* Preview */
-                  <div className="relative rounded-xl overflow-hidden border border-white/10">
-                    {form.mediaType === 'image' ? (
-                      <img
-                        src={form.mediaData}
-                        alt="Preview"
-                        className="w-full h-52 object-cover"
-                      />
-                    ) : (
-                      <video
-                        src={form.mediaData}
-                        className="w-full h-52 object-cover"
-                        controls
-                        muted
-                      />
-                    )}
-                    {/* File info + remove */}
-                    <div className="absolute top-3 right-3 flex items-center gap-2">
-                      <span className="px-2 py-1 text-[10px] font-bold uppercase rounded bg-black/60 backdrop-blur-sm text-white flex items-center gap-1">
-                        {form.mediaType === 'video' ? <Film size={12} /> : <Image size={12} />}
-                        {form.mediaType}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={clearMedia}
-                        className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-red-600 transition-colors"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                    <div className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-black/60 backdrop-blur-sm">
-                      <p className="text-white text-xs truncate">{form.mediaName}</p>
-                    </div>
+                ) : null}
+
+                {/* Multi-Preview Gallery */}
+                {form.mediaItems.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    {form.mediaItems.map((item) => (
+                      <div key={item.id} className="relative rounded-xl overflow-hidden border border-white/10 h-32 group">
+                        {item.type === 'image' ? (
+                          <img src={item.data} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-black flex items-center justify-center">
+                            <Film size={24} className="text-gray-600" />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeMediaItem(item.id)}
+                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                    {/* Add more button in the grid */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="rounded-xl border-2 border-dashed border-white/10 bg-white/[0.02] hover:border-purple-500/40 hover:bg-white/5 flex flex-col items-center justify-center gap-2 transition-all h-32"
+                    >
+                      <Plus size={20} className="text-gray-500" />
+                      <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Add More</span>
+                    </button>
+                  </div>
+                ) : null}
+
+                {!form.mediaItems.length && !isDragging && (
+                  <div className="mt-4 p-4 rounded-xl bg-purple-600/5 border border-purple-600/10 text-center">
+                    <p className="text-xs text-gray-500 font-medium">
+                      Select multiple files to create a scrollable gallery
+                    </p>
                   </div>
                 )}
 
